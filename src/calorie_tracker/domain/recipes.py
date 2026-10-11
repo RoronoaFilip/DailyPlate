@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from .nutrition import BASIS_COUNT, BASIS_GRAMS, Nutrients, ZERO, unit_label
 from .nutrition import BASIS_COUNT, BASIS_GRAMS, Nutrients, ZERO, check_basis, unit_label
 
 

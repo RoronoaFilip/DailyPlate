@@ -44,7 +44,7 @@ def _is_unsafe(name: str, parts: list[str]) -> bool:
 
 
 def _is_junk(parts: list[str]) -> bool:
-    return any(part == "__MACOSX" or part.startswith(".") for part in parts)
+    return any(part.casefold() == "__macosx" or part.startswith(".") for part in parts)
 
 
 def _safe_filename(name: str) -> str:
@@ -82,10 +82,14 @@ def extract_zip(
                 raise ZipIntakeError(f"{label} contains an unsafe file path ({info.filename!r}), so it was not imported.")
             if parts and not _is_junk(parts):
                 entries.append((info, parts))
-        folders = {parts[0] for _info, parts in entries if len(parts) > 1}
-        if len(folders) > 1:
+        # Folder names are compared ignoring case: "Photos" and "photos" are one folder on Windows and macOS.
+        folder_names: dict[str, str] = {}
+        for _info, parts in entries:
+            if len(parts) > 1:
+                folder_names.setdefault(parts[0].casefold(), parts[0])
+        if len(folder_names) > 1:
             raise ZipIntakeError(
-                f"{label} contains more than one folder ({', '.join(sorted(folders))}). "
+                f"{label} contains more than one folder ({', '.join(sorted(folder_names.values()))}). "
                 "Put everything at the top level or in a single folder."
             )
         chosen = [
