@@ -57,8 +57,8 @@ jobs:
     uses: ./.github/workflows/ci.yml
     secrets: inherit # Send Secrets
 
-  release-build:
-    name: Build (${{ matrix.mode }})
+  build-windows:
+    name: Build Windows (${{ matrix.mode }})
     needs: ci
     runs-on: windows-latest
     permissions:
@@ -69,7 +69,7 @@ jobs:
         mode: [exe, folder]
     env:
       VERSION: ${{ inputs.version }}
-      DAILYPLATE_BUILD_MODE: ${{ matrix.mode }}   # read by exe/DailyPlate.spec
+      DAILYPLATE_BUILD_MODE: ${{ matrix.mode }}   # read by release/windows/DailyPlate.spec
 
     steps:
       - name: Checkout
@@ -96,18 +96,18 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
-          .venv\Scripts\python.exe -m PyInstaller exe\DailyPlate.spec --noconfirm --clean `
-            --distpath exe\dist --workpath exe\build
+          .venv\Scripts\python.exe -m PyInstaller release\windows\DailyPlate.spec --noconfirm --clean `
+            --distpath release\windows\dist --workpath release\windows\build
 
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path out | Out-Null
           if ($env:DAILYPLATE_BUILD_MODE -eq "folder") {
-            Compress-Archive -Path exe\dist\DailyPlate `
+            Compress-Archive -Path release\windows\dist\DailyPlate `
               -DestinationPath "out\DailyPlate-$env:VERSION-windows-x64-folder.zip"
           } else {
-            Copy-Item exe\dist\DailyPlate.exe "out\DailyPlate-$env:VERSION-windows-x64.exe"
+            Copy-Item release\windows\dist\DailyPlate.exe "out\DailyPlate-$env:VERSION-windows-x64.exe"
           }
           Get-ChildItem out | Format-Table Name, Length
 
@@ -119,9 +119,64 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-linux:
+    name: Build Linux
+    needs: ci
+    # Oldest runner image on purpose: the app runs on this glibc (2.35) or newer.
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxcb-cursor0
+
+      - name: Build
+        run: bash release/linux/build_linux.sh --skip-tests   # tests already ran in the CI job
+
+      - name: Smoke test
+        run: |
+          # Unzip like a user would, start the app headless, and expect it to still be running
+          # when the timeout kills it (exit code 124). Any other exit code means it crashed.
+          tmp="$(mktemp -d)"
+          unzip -q release/linux/dist/DailyPlate-linux-*.zip -d "$tmp"
+          code=0
+          QT_QPA_PLATFORM=offscreen XDG_DATA_HOME="$tmp/xdg" \
+            timeout 15 "$tmp/DailyPlate/DailyPlate" || code=$?
+          if [ "$code" -ne 124 ]; then
+            echo "::error::The app exited early with code $code."
+            exit 1
+          fi
+
+      - name: Package
+        run: |
+          mkdir out
+          cp release/linux/dist/DailyPlate-linux-x64.zip "out/DailyPlate-${VERSION}-linux-x64.zip"
+          ls -l out
+
+      - name: Upload package
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-linux
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Publish to GitHub
-    needs: release-build
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,14 +199,22 @@ jobs:
       - name: Release notes
         run: |
           cat > notes.md <<'NOTES'
-          Windows 64-bit builds of Daily Plate. No Python install needed.
+          Windows and Linux 64-bit builds of Daily Plate. No Python install needed.
+
+          **Windows**
 
           - **`...-windows-x64.exe`** - single file; double-click to run. Slightly slower start.
           - **`...-windows-x64-folder.zip`** - unzip and run `DailyPlate\DailyPlate.exe`; starts faster. Keep the `_internal` folder next to the exe.
 
           Your data is stored in `%LOCALAPPDATA%\DailyPlate\data` (or in a `data` folder next to the exe, if you create one).
 
-          These builds are not code-signed, so Windows SmartScreen may show "Unknown publisher" - choose *More info -> Run anyway*.
+          **Linux**
+
+          - **`...-linux-x64.zip`** - unzip and run `DailyPlate/DailyPlate`. Keep the `_internal` folder next to it. Needs a 64-bit distribution with glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+). If the app does not start and mentions the Qt "xcb" plugin, install `libxcb-cursor0` (Debian/Ubuntu) or `xcb-util-cursor` (Fedora). If the file is not executable after unzipping, run `chmod +x DailyPlate/DailyPlate`.
+
+          Your data is stored in `~/.local/share/DailyPlate/data` (or `$XDG_DATA_HOME/DailyPlate/data`, or in a `data` folder next to the executable, if you create one).
+
+          The Windows builds are not code-signed, so Windows SmartScreen may show "Unknown publisher" - choose *More info -> Run anyway*.
           Verify downloads against `SHA256SUMS.txt`.
           NOTES
 

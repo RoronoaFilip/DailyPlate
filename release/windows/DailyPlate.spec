@@ -1,15 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for Daily Plate (Calorie Tracker): windowed app, no console.
-# Normally started by exe\build_exe.ps1 (or CI), which sets DAILYPLATE_BUILD_MODE:
+# Normally started by release\windows\build_exe.ps1 (or CI), which sets DAILYPLATE_BUILD_MODE:
 #   exe     -> one self-contained DailyPlate.exe (default)
 #   folder  -> DailyPlate\ folder (faster start, ship the whole folder)
-# Manual build:  python -m PyInstaller exe\DailyPlate.spec --noconfirm --clean
+# Manual build:  python -m PyInstaller release\windows\DailyPlate.spec --noconfirm --clean
 
 import os
 from pathlib import Path
 
-ROOT = Path(SPECPATH).resolve().parent          # project folder (the one containing app.py)
-ICON = ROOT / "exe" / "app.ico"                 # the exe icon; must exist at build time
+ROOT = Path(SPECPATH).resolve().parent.parent   # project folder (the one containing app.py)
+ICON = ROOT / "release" / "windows" / "app.ico"  # the exe icon; must exist at build time
 
 MODE = os.environ.get("DAILYPLATE_BUILD_MODE", "exe").strip().lower()
 if MODE not in ("exe", "folder"):
@@ -21,7 +21,7 @@ if ICON.is_file():
 else:
     print("=" * 78)
     print(f"[DailyPlate.spec] WARNING: icon not found at {ICON}")
-    print("                  The exe will be built with the default icon. Add exe/app.ico and rebuild.")
+    print("                  The exe will be built with the default icon. Add release/windows/app.ico and rebuild.")
     print("=" * 78)
 
 a = Analysis(

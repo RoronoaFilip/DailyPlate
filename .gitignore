@@ -11,9 +11,8 @@ exports/
 .venv/
 *.egg-info/
 backups
-exe/*
-!exe/DailyPlate.spec
-!exe/app.ico
+release/*/dist/
+release/*/build/
 docs
 
 .coverage

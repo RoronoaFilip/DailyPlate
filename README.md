@@ -77,4 +77,8 @@ python -m unittest discover -v
 
 Tests use temporary databases and never touch your `data` folder.
 
-**Build a single .exe:** see [`exe/BUILD_EXE.md`](exe/BUILD_EXE.md) and run `exe\build_exe.ps1`.
+**Build a Windows .exe (single file or folder):** see [`release/windows/BUILD_EXE.md`](release/windows/BUILD_EXE.md) and run `release\windows\build_exe.ps1`.
+
+**Build for Linux (zip of a folder):** see [`release/linux/BUILD_LINUX.md`](release/linux/BUILD_LINUX.md) and run `bash release/linux/build_linux.sh`.
+
+The **Release** workflow builds all three packages (Windows exe, Windows folder zip, Linux zip) and attaches them to a GitHub release.
